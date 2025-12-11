@@ -1,9 +1,12 @@
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import threading
 import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
 
 # Configuración del bot de Discord
 intents = discord.Intents.default()
