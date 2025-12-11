@@ -84,6 +84,7 @@ def gitlab_webhook():
     """Endpoint para recibir webhooks de GitLab"""
     data = request.json
     
+    
     if not data:
         return jsonify({'error': 'No data received'}), 400
     
