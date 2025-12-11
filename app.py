@@ -18,6 +18,7 @@ CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', '0'))  # Reemplaza con tu chann
 # Configuración de Flask para el webhook
 app = Flask(__name__)
 
+
 @bot.event
 async def on_ready():
     print(f'Bot conectado como {bot.user}')
