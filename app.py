@@ -139,6 +139,5 @@ def main():
     # Iniciar bot de Discord
     bot.run(DISCORD_TOKEN)
 
-
 if __name__ == '__main__':
     main()
