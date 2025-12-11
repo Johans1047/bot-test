@@ -8,9 +8,8 @@ from dotenv import load_dotenv
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
 
-# Configuración del bot de Discord
+# Configuración del bot de Discord (sin intents privilegiados)
 intents = discord.Intents.default()
-intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # ID del canal donde se enviarán las notificaciones
@@ -27,44 +26,58 @@ async def on_ready():
 @app.route('/webhook/github', methods=['POST'])
 def github_webhook():
     """Endpoint para recibir webhooks de GitHub"""
-    data = request.json
-    
-    if not data:
-        return jsonify({'error': 'No data received'}), 400
-    
-    # Detectar evento de push (commit)
-    if 'commits' in data and data.get('ref'):
-        branch = data['ref'].split('/')[-1]
-        repo_name = data['repository']['full_name']
-        pusher = data['pusher']['name']
-        commits = data['commits']
+    try:
+        data = request.json
         
-        # Crear mensaje para Discord
-        message = f"🔔 **Nuevo commit en {repo_name}**\n"
-        message += f"📂 Branch: `{branch}`\n"
-        message += f"👤 Autor: {pusher}\n"
-        message += f"📝 Commits ({len(commits)}):\n\n"
+        if not data:
+            print("❌ No se recibieron datos")
+            return jsonify({'error': 'No data received'}), 400
         
-        for commit in commits[:5]:  # Limitar a 5 commits
-            commit_msg = commit['message'].split('\n')[0][:100]
-            commit_id = commit['id'][:7]
-            author = commit['author']['name']
-            message += f"• `{commit_id}` - {commit_msg} ({author})\n"
+        print(f"✅ Webhook recibido de GitHub")
+        print(f"📦 Evento: {request.headers.get('X-GitHub-Event', 'unknown')}")
         
-        if len(commits) > 5:
-            message += f"\n... y {len(commits) - 5} commits más"
+        # Detectar evento de push (commit)
+        if 'commits' in data and data.get('ref'):
+            branch = data['ref'].split('/')[-1]
+            repo_name = data['repository']['full_name']
+            pusher = data['pusher']['name']
+            commits = data['commits']
+            
+            print(f"🔔 Nuevo commit detectado en {repo_name}")
+            
+            # Crear mensaje para Discord
+            message = f"🔔 **Nuevo commit en {repo_name}**\n"
+            message += f"📂 Branch: `{branch}`\n"
+            message += f"👤 Autor: {pusher}\n"
+            message += f"📝 Commits ({len(commits)}):\n\n"
+            
+            for commit in commits[:5]:  # Limitar a 5 commits
+                commit_msg = commit['message'].split('\n')[0][:100]
+                commit_id = commit['id'][:7]
+                author = commit['author']['name']
+                message += f"• `{commit_id}` - {commit_msg} ({author})\n"
+            
+            if len(commits) > 5:
+                message += f"\n... y {len(commits) - 5} commits más"
+            
+            message += f"\n🔗 [Ver cambios]({data['compare']})"
+            
+            # Enviar mensaje a Discord de forma asíncrona
+            channel = bot.get_channel(CHANNEL_ID)
+            if channel:
+                bot.loop.create_task(channel.send(message))
+                print(f"✅ Notificación enviada a Discord")
+                return jsonify({'status': 'success', 'message': 'Notification sent'}), 200
+            else:
+                print(f"❌ Canal {CHANNEL_ID} no encontrado")
+                return jsonify({'error': 'Channel not found'}), 404
         
-        message += f"\n🔗 [Ver cambios]({data['compare']})"
+        print(f"⚠️ Evento ignorado (no es un push)")
+        return jsonify({'status': 'ignored', 'message': 'Not a push event'}), 200
         
-        # Enviar mensaje a Discord de forma asíncrona
-        channel = bot.get_channel(CHANNEL_ID)
-        if channel:
-            bot.loop.create_task(channel.send(message))
-            return jsonify({'status': 'success', 'message': 'Notification sent'}), 200
-        else:
-            return jsonify({'error': 'Channel not found'}), 404
-    
-    return jsonify({'status': 'ignored', 'message': 'Not a push event'}), 200
+    except Exception as e:
+        print(f"❌ Error en webhook: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/webhook/gitlab', methods=['POST'])
 def gitlab_webhook():
@@ -108,6 +121,18 @@ def gitlab_webhook():
 def health():
     """Endpoint para verificar que el servidor está funcionando"""
     return jsonify({'status': 'online', 'bot': str(bot.user) if bot.user else 'disconnected'}), 200
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    """Ruta raíz para verificar que el servidor está corriendo"""
+    return jsonify({
+        'status': 'Server is running',
+        'endpoints': {
+            'github': '/webhook/github',
+            'gitlab': '/webhook/gitlab',
+            'health': '/health'
+        }
+    }), 200
 
 def run_flask():
     """Ejecutar Flask en un thread separado"""
