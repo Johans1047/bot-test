@@ -1,5 +1,3 @@
 # Bot-Test
 
-
-
-
+## Getting Started
